@@ -1,0 +1,70 @@
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+# Load .env for both HTTP and MQ processes.
+env_files = [".env"]
+
+[build]
+args_bin = []
+# Build both entrypoints on each change.
+cmd = "go build -o ./tmp/http.exe ./cmd/http/ && go build -o ./tmp/mq.exe ./cmd/mq/"
+# bin is used for process tracking on reload; full_bin runs HTTP + MQ (entrypoint in TOML is not applied in air v1.63).
+bin = "./tmp/http.exe"
+full_bin = "sh ./scripts/dev-air.sh"
+delay = 1000
+exclude_dir = [
+  "assets",
+  "tmp",
+  "vendor",
+  "testdata",
+  ".git",
+  "node_modules",
+  "cmd/downloader-worker",
+  "cmd/job",
+  "cmd/migration",
+  "cmd/seed",
+  "docs",
+]
+exclude_file = ["*.html"]
+exclude_regex = ["_test.go", ".*_templ.go"]
+exclude_unchanged = true
+follow_symlink = false
+include_dir = []
+include_ext = ["go", "tpl", "tmpl", "html"]
+include_file = []
+kill_delay = "2s"
+log = "build-errors.log"
+poll = false
+poll_interval = 0
+post_cmd = []
+pre_cmd = []
+rerun = false
+rerun_delay = 300
+send_interrupt = true
+stop_on_error = true
+
+[color]
+app = ""
+build = "yellow"
+main = "magenta"
+runner = "green"
+watcher = "cyan"
+
+[log]
+main_only = false
+silent = false
+time = true
+level = "debug"
+
+[misc]
+clean_on_exit = true
+
+[proxy]
+app_port = 0
+enabled = false
+proxy_port = 0
+
+[screen]
+clear_on_rebuild = false
+keep_scroll = true
