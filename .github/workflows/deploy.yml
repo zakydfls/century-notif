@@ -117,12 +117,29 @@ jobs:
           printf '%s\n' "$GH_TOKEN" | $DOCKER login "$REGISTRY" -u "$GITHUB_ACTOR" --password-stdin
 
           cd "$REMOTE_APP_DIR"
-          printf 'NOTIF_IMAGE=%s:%s\n' "$IMAGE_REF" "$RELEASE_SHA" > .env.deploy
+          IMAGE_TAG="$IMAGE_REF:$RELEASE_SHA"
+          TMP_ENV="$(mktemp)"
+          awk -v image="$IMAGE_TAG" '
+            BEGIN { replaced = 0 }
+            /^NOTIF_IMAGE=/ {
+              print "NOTIF_IMAGE=" image
+              replaced = 1
+              next
+            }
+            { print }
+            END {
+              if (replaced == 0) {
+                print "NOTIF_IMAGE=" image
+              }
+            }
+          ' .env > "$TMP_ENV"
+          cat "$TMP_ENV" > .env
+          rm -f "$TMP_ENV"
 
-          $DOCKER compose --env-file .env.deploy -f docker-compose.yml pull migrate api worker
-          $DOCKER compose --env-file .env.deploy -bedf docker-compose.yml run --rm migrate
-          $DOCKER compose --env-file .env.deploy -f docker-compose.yml up -d api worker
-          $DOCKER compose --env-file .env.deploy -f docker-compose.yml ps api worker
+          $DOCKER compose -f docker-compose.yml --profile migration pull
+          $DOCKER compose -f docker-compose.yml --profile migration run --rm migrate
+          $DOCKER compose -f docker-compose.yml up -d
+          $DOCKER compose -f docker-compose.yml ps api worker
 
           $DOCKER image prune -f
           EOF

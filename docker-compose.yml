@@ -2,6 +2,8 @@ services:
   migrate:
     image: ${NOTIF_IMAGE:-ghcr.io/zakydfls/century-notif:latest}
     container_name: century-notif-migrate
+    profiles:
+      - migration
     network_mode: host
     env_file:
       - .env

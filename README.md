@@ -24,7 +24,8 @@ go run ./cmd/mq
 Docker Compose deployment runs API and worker as separate services:
 
 ```bash
-docker compose up -d api worker
+docker compose --profile migration run --rm migrate
+docker compose up -d
 docker compose logs -f api
 docker compose logs -f worker
 ```
