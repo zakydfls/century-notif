@@ -1,6 +1,6 @@
 services:
   migrate:
-    image: ${NOTIF_IMAGE:-century-notif:latest}
+    image: ${NOTIF_IMAGE:-ghcr.io/zakydfls/century-notif:latest}
     container_name: century-notif-migrate
     network_mode: host
     env_file:
@@ -9,7 +9,7 @@ services:
     restart: "no"
 
   api:
-    image: ${NOTIF_IMAGE:-century-notif:latest}
+    image: ${NOTIF_IMAGE:-ghcr.io/zakydfls/century-notif:latest}
     container_name: century-notif-api
     network_mode: host
     env_file:
@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ${NOTIF_IMAGE:-century-notif:latest}
+    image: ${NOTIF_IMAGE:-ghcr.io/zakydfls/century-notif:latest}
     container_name: century-notif-worker
     network_mode: host
     env_file:

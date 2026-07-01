@@ -120,7 +120,7 @@ jobs:
           printf 'NOTIF_IMAGE=%s:%s\n' "$IMAGE_REF" "$RELEASE_SHA" > .env.deploy
 
           $DOCKER compose --env-file .env.deploy -f docker-compose.yml pull migrate api worker
-          $DOCKER compose --env-file .env.deploy -f docker-compose.yml run --rm migrate
+          $DOCKER compose --env-file .env.deploy -bedf docker-compose.yml run --rm migrate
           $DOCKER compose --env-file .env.deploy -f docker-compose.yml up -d api worker
           $DOCKER compose --env-file .env.deploy -f docker-compose.yml ps api worker
 

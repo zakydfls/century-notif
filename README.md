@@ -24,9 +24,9 @@ go run ./cmd/mq
 Docker Compose deployment runs API and worker as separate services:
 
 ```bash
-docker compose --env-file .env.deploy up -d api worker
+docker compose up -d api worker
 docker compose logs -f api
 docker compose logs -f worker
 ```
 
-On the VPS, keep the full application env at `~/notif-gateway/.env`. The GitHub Actions deploy workflow pushes the image to GHCR, copies `docker-compose.yml` to `~/notif-gateway`, pulls the tagged image, runs the `migrate` service (`/app/notif-migration`), then restarts `api` and `worker`.
+On the VPS, keep the full application env at `~/notif-gateway/.env`. The GitHub Actions deploy workflow pushes the image to GHCR, copies `docker-compose.yml` to `~/notif-gateway`, updates `NOTIF_IMAGE` inside `.env`, pulls the tagged image, runs the `migrate` service (`/app/notif-migration`), then restarts `api` and `worker`.
