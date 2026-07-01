@@ -138,7 +138,20 @@ jobs:
 
           $DOCKER compose -f docker-compose.yml --profile migration pull
           $DOCKER compose -f docker-compose.yml --profile migration run --rm migrate
-          $DOCKER compose -f docker-compose.yml up -d
+          $DOCKER compose -f docker-compose.yml up -d api worker
+          for service in api worker; do
+            container_id="$($DOCKER compose -f docker-compose.yml ps -q "$service")"
+            if [ -z "$container_id" ]; then
+              echo "container for $service was not created" >&2
+              $DOCKER compose -f docker-compose.yml logs --no-color --tail=100 "$service" >&2 || true
+              exit 1
+            fi
+            if [ "$($DOCKER inspect -f '{{.State.Running}}' "$container_id")" != "true" ]; then
+              echo "$service is not running after deploy" >&2
+              $DOCKER compose -f docker-compose.yml logs --no-color --tail=100 "$service" >&2 || true
+              exit 1
+            fi
+          done
           $DOCKER compose -f docker-compose.yml ps api worker
 
           $DOCKER image prune -f
