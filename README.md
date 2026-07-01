@@ -16,6 +16,7 @@ Set caller service identity with `X-Century-Service`; missing or blank values ar
 Common commands:
 
 ```bash
+go run ./cmd/migration
 go run ./cmd/http
 go run ./cmd/mq
 ```
@@ -28,4 +29,4 @@ docker compose logs -f api
 docker compose logs -f worker
 ```
 
-On the VPS, keep the full application env at `~/notif-gateway/.env`. The GitHub Actions deploy workflow pushes the image to GHCR, copies `docker-compose.yml` to `~/notif-gateway`, pulls the tagged image, runs the `migrate` service, then restarts `api` and `worker`.
+On the VPS, keep the full application env at `~/notif-gateway/.env`. The GitHub Actions deploy workflow pushes the image to GHCR, copies `docker-compose.yml` to `~/notif-gateway`, pulls the tagged image, runs the `migrate` service (`/app/notif-migration`), then restarts `api` and `worker`.

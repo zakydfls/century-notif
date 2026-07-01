@@ -24,7 +24,7 @@ staticcheck:
 	staticcheck ./...
 
 build:
-	go build ./cmd/http ./cmd/mq
+	go build ./cmd/http ./cmd/mq ./cmd/migration
 
 verify: test vet staticcheck build
 

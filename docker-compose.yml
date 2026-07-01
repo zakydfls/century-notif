@@ -5,7 +5,7 @@ services:
     network_mode: host
     env_file:
       - .env
-    command: ["sh", "-c", "/app/goose -dir /app/migrations postgres \"$$POSTGRES_DSN\" up"]
+    command: ["/app/notif-migration"]
     restart: "no"
 
   api:

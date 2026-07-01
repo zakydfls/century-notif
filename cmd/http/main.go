@@ -13,7 +13,6 @@ import (
 	"notif-gateway/internal/adapter/inbound/rest"
 	"notif-gateway/internal/adapter/outbound/repository"
 	"notif-gateway/internal/adapter/provider"
-	"notif-gateway/internal/core/enum"
 	"notif-gateway/internal/core/service"
 	"notif-gateway/internal/infrastructure"
 	applogger "notif-gateway/internal/pkg/logger"
@@ -36,12 +35,6 @@ func main() {
 		os.Exit(1)
 	}
 	defer postgres.Close()
-	if config.Migration.AutoMigrate && (config.App.Env == enum.EnvLocal || config.App.Env == enum.EnvDevelopment) {
-		if err := postgres.AutoMigrate(); err != nil {
-			log.Error("failed to auto migrate", slog.String("error", err.Error()))
-			os.Exit(1)
-		}
-	}
 
 	db := postgres.DB()
 	notifRepo := repository.NewNotification(db)
