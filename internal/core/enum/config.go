@@ -15,4 +15,5 @@ const (
 	HeaderRetryCount      = "x-retry-count"
 	HeaderRequestID       = "x-request-id"
 	HeaderNotificationKey = "x-notification-key"
+	HeaderCenturyService  = "X-Century-Service"
 )

@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 
 	"notif-gateway/internal/core/command"
-	"notif-gateway/internal/core/service"
 	"notif-gateway/internal/core/entity"
+	"notif-gateway/internal/core/service"
 	"notif-gateway/internal/pkg/validator"
 	"notif-gateway/internal/value_object/dto/pagination"
 	response "notif-gateway/internal/value_object/dto/response"
@@ -56,7 +56,9 @@ func (n *notificationREST) Enqueue(w http.ResponseWriter, r *http.Request) error
 	if err := validator.Bind(r, &request); err != nil {
 		return err
 	}
-	result, err := n.notifications.Enqueue(r.Context(), request.ToEnqueue())
+	input := request.ToEnqueue()
+	input.ServiceName = serviceNameFromContext(r.Context())
+	result, err := n.notifications.Enqueue(r.Context(), input)
 	if err != nil {
 		return err
 	}
@@ -69,6 +71,7 @@ func (n *notificationREST) EnqueueBatch(w http.ResponseWriter, r *http.Request) 
 	if err := validator.Bind(r, &request); err != nil {
 		return err
 	}
+	request.ServiceName = serviceNameFromContext(r.Context())
 	result, err := n.notifications.EnqueueBatch(r.Context(), request)
 	if err != nil {
 		return err
@@ -86,6 +89,9 @@ func (n *notificationREST) List(w http.ResponseWriter, r *http.Request) error {
 	pg := pagination.NewPagination(r.URL.Query())
 	if query.Channel != "" {
 		pg.QueryAdd("channel", query.Channel)
+	}
+	if query.ServiceName != "" {
+		pg.QueryAdd("service_name", query.ServiceName)
 	}
 	if query.Status != "" {
 		pg.QueryAdd("status", query.Status)

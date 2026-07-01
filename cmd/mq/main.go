@@ -69,9 +69,17 @@ func run() error {
 	notifRepo := repository.NewNotification(db)
 	attemptRepo := repository.NewAttempt(db)
 	templateRepo := repository.NewTemplate(db)
+	outboxRepo := repository.NewNotificationOutbox(db)
 	builder := service.NewNotificationBuilder(service.NewTemplateRenderer(templateRepo), dispatcher)
 	processor := service.NewDeliveryProcessor(notifRepo, attemptRepo, dispatcher, builder)
 	var consumer event.Consumer = infrastructure.NewRabbitConsumer(rabbit, logger)
+	sweeper := service.NewOutboxSweeper(outboxRepo, rabbit, logger, service.OutboxSweeperConfig{
+		SweepInterval:  config.Outbox.SweepInterval,
+		BatchSize:      config.Outbox.BatchSize,
+		LockTTL:        config.Outbox.LockTTL,
+		RetryBaseDelay: config.Outbox.RetryBaseDelay,
+		RetryMaxDelay:  config.Outbox.RetryMaxDelay,
+	})
 
 	workers := infrastructure.NewChannelWorkers(infrastructure.ChannelWorkerConfig{
 		Prefetch:    config.Worker.Prefetch,
@@ -80,6 +88,14 @@ func run() error {
 	})
 
 	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		logger.Info("outbox sweeper starting",
+			slog.Duration("sweep_interval", config.Outbox.SweepInterval),
+			slog.Int("batch_size", config.Outbox.BatchSize),
+			slog.Duration("lock_ttl", config.Outbox.LockTTL),
+		)
+		return sweeper.Run(ctx)
+	})
 	for _, ch := range []enum.Channel{enum.ChannelSMS, enum.ChannelWhatsApp, enum.ChannelEmail} {
 		workerCfg := workers.ForChannel(ch)
 		group.Go(func() error {

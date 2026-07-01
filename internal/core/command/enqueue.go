@@ -11,9 +11,10 @@ import (
 type Enqueue struct {
 	UserID *uuid.UUID `json:"user_id,omitempty"`
 
-	Channel    enum.Channel `json:"channel" validate:"required,oneof=sms whatsapp email"`
-	Recipients []string     `json:"recipients,omitempty" validate:"omitempty,min=1,dive,required"`
-	Body       string       `json:"body,omitempty"`
+	ServiceName string       `json:"-" validate:"omitempty,max=128"`
+	Channel     enum.Channel `json:"channel" validate:"required,oneof=sms whatsapp email"`
+	Recipients  []string     `json:"recipients,omitempty" validate:"omitempty,min=1,dive,required"`
+	Body        string       `json:"body,omitempty"`
 
 	TemplateKey          string        `json:"template_key,omitempty"`
 	TemplateParams       types.JSONMap `json:"template_params,omitempty"`

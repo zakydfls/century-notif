@@ -20,6 +20,7 @@ type SendNotificationPayload struct {
 
 	UserID *uuid.UUID `json:"user_id,omitempty"`
 
+	ServiceName          string        `json:"service_name,omitempty"`
 	Body                 string        `json:"body,omitempty"`
 	TemplateKey          string        `json:"template_key,omitempty"`
 	TemplateParams       types.JSONMap `json:"template_params,omitempty"`

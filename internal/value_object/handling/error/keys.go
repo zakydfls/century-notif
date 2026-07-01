@@ -14,6 +14,7 @@ const (
 	KeyValidationFailed    = "errors.validation.failed"
 
 	KeyEnqueueSingleRecipient    = "notification.enqueue.single_recipient_required"
+	KeyServiceNameInvalid        = "notification.service_name.invalid"
 	KeyInvalidChannel            = "notification.channel.invalid"
 	KeyMissingContent            = "notification.content.required"
 	KeyEmailSubjectRequired      = "notification.email.subject_required"

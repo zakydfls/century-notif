@@ -43,15 +43,9 @@ func main() {
 		}
 	}
 
-	rabbit, err := infrastructure.NewRabbit(config.Rabbit, log)
-	if err != nil {
-		log.Error("failed to connect rabbit", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	defer rabbit.Close()
-
 	db := postgres.DB()
 	notifRepo := repository.NewNotification(db)
+	outboxRepo := repository.NewNotificationOutbox(db)
 	templateRepo := repository.NewTemplate(db)
 	webhookEventRepo := repository.NewWebhookEvent(db)
 	txm := repository.NewTxManager(db)
@@ -67,9 +61,8 @@ func main() {
 	builder := service.NewNotificationBuilder(renderer, dispatcher)
 	notifications := service.NewNotificationService(
 		notifRepo,
+		outboxRepo,
 		txm,
-		rabbit,
-		log,
 		builder,
 	)
 	webhooks := service.NewWebhookHandler(notifRepo, webhookEventRepo, txm)

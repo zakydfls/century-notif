@@ -14,9 +14,10 @@ type Notification struct {
 
 	UserID *uuid.UUID `json:"user_id,omitempty" gorm:"index"`
 
-	Channel   enum.Channel  `json:"channel" gorm:"type:varchar(32);not null;index"`
-	Provider  enum.Provider `json:"provider" gorm:"type:varchar(32);not null;index"`
-	Recipient string        `json:"recipient" gorm:"type:varchar(255);not null;index"`
+	ServiceName string        `json:"service_name,omitempty" gorm:"type:varchar(128);not null;default:'';index"`
+	Channel     enum.Channel  `json:"channel" gorm:"type:varchar(32);not null;index"`
+	Provider    enum.Provider `json:"provider" gorm:"type:varchar(32);not null;index"`
+	Recipient   string        `json:"recipient" gorm:"type:varchar(255);not null;index"`
 
 	Body                 string        `json:"body" gorm:"type:text"`
 	TemplateKey          string        `json:"template_key,omitempty" gorm:"type:varchar(128);index"`

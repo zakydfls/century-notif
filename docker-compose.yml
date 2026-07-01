@@ -1,0 +1,27 @@
+services:
+  migrate:
+    image: ${NOTIF_IMAGE:-century-notif:latest}
+    container_name: century-notif-migrate
+    network_mode: host
+    env_file:
+      - .env
+    command: ["sh", "-c", "/app/goose -dir /app/migrations postgres \"$$POSTGRES_DSN\" up"]
+    restart: "no"
+
+  api:
+    image: ${NOTIF_IMAGE:-century-notif:latest}
+    container_name: century-notif-api
+    network_mode: host
+    env_file:
+      - .env
+    command: ["/app/notif-http"]
+    restart: unless-stopped
+
+  worker:
+    image: ${NOTIF_IMAGE:-century-notif:latest}
+    container_name: century-notif-worker
+    network_mode: host
+    env_file:
+      - .env
+    command: ["/app/notif-mq"]
+    restart: unless-stopped

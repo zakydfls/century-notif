@@ -1,0 +1,128 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  APP_DIR: notif-gateway
+  REGISTRY: ghcr.io
+  IMAGE_REPOSITORY: ${{ github.repository }}
+  GO_VERSION_FILE: go.mod
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Prepare image metadata
+        run: |
+          set -euo pipefail
+          IMAGE_REPOSITORY_LOWER="$(printf '%s' "$IMAGE_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE_REF=$REGISTRY/$IMAGE_REPOSITORY_LOWER" >> "$GITHUB_ENV"
+
+      - name: Login to GHCR
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          printf '%s\n' "$GH_TOKEN" | docker login "$REGISTRY" -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and push Docker image
+        run: |
+          set -euo pipefail
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "commit=${GITHUB_SHA}" \
+            -t "${IMAGE_REF}:${GITHUB_SHA}" \
+            -t "${IMAGE_REF}:latest" \
+            .
+          docker push "${IMAGE_REF}:${GITHUB_SHA}"
+          docker push "${IMAGE_REF}:latest"
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST"
+          test -n "$SSH_USER"
+          test -n "$SSH_PRIVATE_KEY"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" "mkdir -p '$APP_DIR'"
+          scp -i ~/.ssh/deploy_key docker-compose.yml "$SSH_USER@$SSH_HOST:$APP_DIR/"
+
+      - name: Activate release
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
+            APP_DIR="$APP_DIR" \
+            REGISTRY="$REGISTRY" \
+            IMAGE_REF="$IMAGE_REF" \
+            RELEASE_SHA="$GITHUB_SHA" \
+            GITHUB_ACTOR="$GITHUB_ACTOR" \
+            GH_TOKEN="$GH_TOKEN" \
+            'bash -se' <<'EOF'
+          set -euo pipefail
+          case "$APP_DIR" in
+            /*) REMOTE_APP_DIR="$APP_DIR" ;;
+            *) REMOTE_APP_DIR="$HOME/$APP_DIR" ;;
+          esac
+
+          if [ ! -f "$REMOTE_APP_DIR/.env" ]; then
+            echo "$REMOTE_APP_DIR/.env is required on the server" >&2
+            exit 1
+          fi
+
+          if docker info >/dev/null 2>&1; then
+            DOCKER="docker"
+          else
+            DOCKER="sudo docker"
+          fi
+
+          printf '%s\n' "$GH_TOKEN" | $DOCKER login "$REGISTRY" -u "$GITHUB_ACTOR" --password-stdin
+
+          cd "$REMOTE_APP_DIR"
+          printf 'NOTIF_IMAGE=%s:%s\n' "$IMAGE_REF" "$RELEASE_SHA" > .env.deploy
+
+          $DOCKER compose --env-file .env.deploy -f docker-compose.yml pull migrate api worker
+          $DOCKER compose --env-file .env.deploy -f docker-compose.yml run --rm migrate
+          $DOCKER compose --env-file .env.deploy -f docker-compose.yml up -d api worker
+          $DOCKER compose --env-file .env.deploy -f docker-compose.yml ps api worker
+
+          $DOCKER image prune -f
+          EOF

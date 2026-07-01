@@ -79,6 +79,9 @@ func (r *notification) FindAll(ctx context.Context, pg *pagination.Pagination) e
 	if v := pg.QueryGet("channel"); v != "" {
 		query = query.Where("channel = ?", v)
 	}
+	if v := pg.QueryGet("service_name"); v != "" {
+		query = query.Where("service_name = ?", v)
+	}
 	if v := pg.QueryGet("provider"); v != "" {
 		query = query.Where("provider = ?", v)
 	}

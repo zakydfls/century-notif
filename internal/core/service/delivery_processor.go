@@ -49,6 +49,9 @@ func (p *deliveryProcessor) Process(ctx context.Context, message event.OutboxMes
 	if err != nil {
 		return err
 	}
+	if shouldSkipDispatch(notification.Status) {
+		return nil
+	}
 
 	notification.Status = enum.NotificationStatusProcessing
 	if err := p.notif.Save(ctx, notification); err != nil {
@@ -69,6 +72,15 @@ func (p *deliveryProcessor) Process(ctx context.Context, message event.OutboxMes
 	}
 	p.markSendSuccess(ctx, notification, result)
 	return nil
+}
+
+func shouldSkipDispatch(status enum.NotificationStatus) bool {
+	switch status {
+	case enum.NotificationStatusSent, enum.NotificationStatusDelivered, enum.NotificationStatusFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *deliveryProcessor) resolveNotification(ctx context.Context, payload event.SendNotificationPayload) (*entity.Notification, error) {

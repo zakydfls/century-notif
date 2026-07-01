@@ -19,6 +19,7 @@ type Config struct {
 	Logger    LoggerConfig
 	Provider  ProviderConfig
 	Worker    WorkerConfig
+	Outbox    OutboxConfig
 	Migration MigrationConfig
 }
 
@@ -119,6 +120,14 @@ type WorkerConfig struct {
 	MaxRetry    int
 }
 
+type OutboxConfig struct {
+	SweepInterval  time.Duration
+	BatchSize      int
+	LockTTL        time.Duration
+	RetryBaseDelay time.Duration
+	RetryMaxDelay  time.Duration
+}
+
 type MigrationConfig struct {
 	AutoMigrate bool
 }
@@ -211,6 +220,13 @@ func NewConfig() (Config, error) {
 			Concurrency: v.GetInt("WORKER_CONCURRENCY"),
 			MaxRetry:    v.GetInt("WORKER_MAX_RETRY"),
 		},
+		Outbox: OutboxConfig{
+			SweepInterval:  v.GetDuration("OUTBOX_SWEEP_INTERVAL"),
+			BatchSize:      v.GetInt("OUTBOX_SWEEP_BATCH_SIZE"),
+			LockTTL:        v.GetDuration("OUTBOX_LOCK_TTL"),
+			RetryBaseDelay: v.GetDuration("OUTBOX_RETRY_BASE_DELAY"),
+			RetryMaxDelay:  v.GetDuration("OUTBOX_RETRY_MAX_DELAY"),
+		},
 		Migration: MigrationConfig{AutoMigrate: v.GetBool("MIGRATION_AUTO_MIGRATE")},
 	}
 	if err := validateConfig(config); err != nil {
@@ -295,6 +311,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("WORKER_CONCURRENCY", 8)
 	v.SetDefault("WORKER_PREFETCH", 16)
 	v.SetDefault("WORKER_MAX_RETRY", 3)
+	v.SetDefault("OUTBOX_SWEEP_INTERVAL", "2s")
+	v.SetDefault("OUTBOX_SWEEP_BATCH_SIZE", 100)
+	v.SetDefault("OUTBOX_LOCK_TTL", "30s")
+	v.SetDefault("OUTBOX_RETRY_BASE_DELAY", "5s")
+	v.SetDefault("OUTBOX_RETRY_MAX_DELAY", "5m")
 	v.SetDefault("MIGRATION_AUTO_MIGRATE", true)
 	v.SetDefault("TWILIO_VALIDATE_WEBHOOK_SIGNATURE", true)
 }

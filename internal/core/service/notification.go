@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,7 +11,6 @@ import (
 	"notif-gateway/internal/adapter/outbound/repository"
 	"notif-gateway/internal/core/command"
 	"notif-gateway/internal/core/entity"
-	"notif-gateway/internal/core/event"
 	"notif-gateway/internal/value_object/dto/pagination"
 	apperror "notif-gateway/internal/value_object/handling/error"
 )
@@ -26,21 +24,23 @@ type Notification interface {
 }
 
 type notificationService struct {
-	notif     repository.Notification
-	tx        *repository.TxManager
-	publisher event.Publisher
-	log       *slog.Logger
-	builder   *NotificationBuilder
+	notif   repository.Notification
+	outbox  repository.NotificationOutbox
+	tx      txRunner
+	builder *NotificationBuilder
+}
+
+type txRunner interface {
+	Do(ctx context.Context, fn func(tx *gorm.DB) error) error
 }
 
 func NewNotificationService(
 	notif repository.Notification,
-	tx *repository.TxManager,
-	publisher event.Publisher,
-	log *slog.Logger,
+	outbox repository.NotificationOutbox,
+	tx txRunner,
 	builder *NotificationBuilder,
 ) Notification {
-	return &notificationService{notif: notif, tx: tx, publisher: publisher, log: log, builder: builder}
+	return &notificationService{notif: notif, outbox: outbox, tx: tx, builder: builder}
 }
 
 func (s *notificationService) Enqueue(ctx context.Context, input command.Enqueue) (command.EnqueueOneResult, error) {
@@ -64,40 +64,29 @@ func (s *notificationService) EnqueueBatch(ctx context.Context, input command.En
 	}
 
 	if err := s.tx.Do(ctx, func(tx *gorm.DB) error {
-		return s.notif.WithTrx(tx).CreateMany(ctx, notifications)
+		if err := s.notif.WithTrx(tx).CreateMany(ctx, notifications); err != nil {
+			return err
+		}
+
+		now := time.Now()
+		outboxEvents := make([]*entity.NotificationOutboxEvent, 0, len(notifications))
+		for _, notification := range notifications {
+			outboxEvent, err := OutboxEventForNotification(notification, now)
+			if err != nil {
+				return err
+			}
+			outboxEvents = append(outboxEvents, outboxEvent)
+		}
+		return s.outbox.WithTrx(tx).CreateMany(ctx, outboxEvents)
 	}); err != nil {
 		return command.EnqueueBatchResult{}, err
 	}
-
-	s.publishToQueueAsync(ctx, notifications)
 
 	ids := make([]uuid.UUID, 0, len(notifications))
 	for _, notification := range notifications {
 		ids = append(ids, notification.ID)
 	}
 	return command.EnqueueBatchResult{NotificationIDs: ids}, nil
-}
-
-func (s *notificationService) publishToQueueAsync(parent context.Context, notifications []*entity.Notification) {
-	if len(notifications) == 0 {
-		return
-	}
-	messages := make([]event.OutboxMessage, len(notifications))
-	for i, n := range notifications {
-		messages[i] = QueueMessageForNotification(n)
-	}
-	go func() {
-		pubCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 30*time.Second)
-		defer cancel()
-		for _, msg := range messages {
-			if err := s.publisher.Publish(pubCtx, msg); err != nil {
-				s.log.ErrorContext(pubCtx, "failed to publish notification to queue",
-					slog.String("notification_id", msg.Payload.NotificationID.String()),
-					slog.String("error", err.Error()),
-				)
-			}
-		}
-	}()
 }
 
 func (s *notificationService) Find(ctx context.Context, e *entity.Notification) error {

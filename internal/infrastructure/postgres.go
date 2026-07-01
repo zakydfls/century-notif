@@ -50,6 +50,7 @@ func (p *Postgres) AutoMigrate() error {
 		&entity.Notification{},
 		&entity.NotificationAttempt{},
 		&entity.NotificationWebhookEvent{},
+		&entity.NotificationOutboxEvent{},
 		&entity.NotificationTemplate{},
 	)
 }

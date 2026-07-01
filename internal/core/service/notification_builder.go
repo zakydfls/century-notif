@@ -24,6 +24,10 @@ func NewNotificationBuilder(renderer *TemplateRenderer, dispatcher *Dispatcher) 
 }
 
 func (b *NotificationBuilder) Build(ctx context.Context, input command.Enqueue) ([]*entity.Notification, error) {
+	serviceName := strings.TrimSpace(input.ServiceName)
+	if len(serviceName) > 128 {
+		return nil, apperror.ErrBadRequest(nil, "service_name must be at most 128 characters", apperror.KeyServiceNameInvalid)
+	}
 	if !input.Channel.IsValid() {
 		return nil, apperror.ErrBadRequest(nil, "invalid notification channel", apperror.KeyInvalidChannel)
 	}
@@ -64,6 +68,7 @@ func (b *NotificationBuilder) Build(ctx context.Context, input command.Enqueue) 
 	for _, recipient := range input.Recipients {
 		notifications = append(notifications, &entity.Notification{
 			UserID:               input.UserID,
+			ServiceName:          serviceName,
 			Channel:              input.Channel,
 			Provider:             provider,
 			Recipient:            recipient,

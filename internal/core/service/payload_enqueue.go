@@ -8,6 +8,7 @@ import (
 func enqueueFromPayload(payload event.SendNotificationPayload) command.Enqueue {
 	return command.Enqueue{
 		UserID:               payload.UserID,
+		ServiceName:          payload.ServiceName,
 		Channel:              payload.Channel,
 		Recipients:           []string{payload.Recipient},
 		Body:                 payload.Body,

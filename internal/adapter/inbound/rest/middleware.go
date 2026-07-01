@@ -15,6 +15,10 @@ import (
 	apperror "notif-gateway/internal/value_object/handling/error"
 )
 
+const unknownServiceName = "unknown"
+
+type serviceNameContextKey struct{}
+
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.Header.Get(enum.HeaderRequestID))
@@ -51,7 +55,28 @@ func notificationKeyMiddleware(expectedKey string) func(http.Handler) http.Handl
 				apperror.Write(w, r, apperror.ErrUnauthorized(nil, "", apperror.KeyUnauthorized))
 				return
 			}
-			next.ServeHTTP(w, r)
+			ctx := context.WithValue(r.Context(), serviceNameContextKey{}, serviceNameFromHeader(r))
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func serviceNameFromHeader(r *http.Request) string {
+	if r == nil {
+		return unknownServiceName
+	}
+	serviceName := strings.TrimSpace(r.Header.Get(enum.HeaderCenturyService))
+	if serviceName == "" {
+		return unknownServiceName
+	}
+	return serviceName
+}
+
+func serviceNameFromContext(ctx context.Context) string {
+	serviceName, _ := ctx.Value(serviceNameContextKey{}).(string)
+	serviceName = strings.TrimSpace(serviceName)
+	if serviceName == "" {
+		return unknownServiceName
+	}
+	return serviceName
 }
