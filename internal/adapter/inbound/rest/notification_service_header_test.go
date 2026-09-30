@@ -13,6 +13,7 @@ import (
 	"notif-gateway/internal/core/entity"
 	"notif-gateway/internal/core/enum"
 	"notif-gateway/internal/value_object/dto/pagination"
+	apperror "notif-gateway/internal/value_object/handling/error"
 )
 
 func TestNotificationKeyMiddlewareSetsServiceNameFromHeader(t *testing.T) {
@@ -99,13 +100,49 @@ func TestNotificationRESTRejectsServiceNameInBody(t *testing.T) {
 	}
 }
 
+func TestNotificationRESTReturnsDisposableEmailErrorContract(t *testing.T) {
+	t.Parallel()
+
+	notifications := &captureNotificationService{enqueueErr: apperror.ErrBadRequest(nil,
+		"disposable email addresses are not allowed", apperror.KeyEmailDisposableRecipient)}
+	rest := &notificationREST{notifications: notifications}
+	handler := requestIDMiddleware(RootHandler(rest.Enqueue))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/notifications", strings.NewReader(`{
+		"channel":"email",
+		"recipient":"user@mailinator.com",
+		"body":"123456",
+		"metadata":{"subject":"OTP"}
+	}`))
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+	body := recorder.Body.String()
+	for _, expected := range []string{
+		`"code":"BAD_REQUEST"`,
+		`"key":"notification.email.disposable_recipient"`,
+		`"message":"disposable email addresses are not allowed"`,
+		`"request_id":`,
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("body %s does not contain %s", body, expected)
+		}
+	}
+}
+
 type captureNotificationService struct {
-	single command.Enqueue
-	batch  command.Enqueue
+	single     command.Enqueue
+	batch      command.Enqueue
+	enqueueErr error
 }
 
 func (c *captureNotificationService) Enqueue(_ context.Context, input command.Enqueue) (command.EnqueueOneResult, error) {
 	c.single = input
+	if c.enqueueErr != nil {
+		return command.EnqueueOneResult{}, c.enqueueErr
+	}
 	return command.EnqueueOneResult{NotificationID: uuid.New()}, nil
 }
 

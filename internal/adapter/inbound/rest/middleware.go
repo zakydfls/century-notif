@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
@@ -35,10 +36,31 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 
 func (h *Handler) requestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		startedAt := time.Now()
+		wrapped := chimiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
 		requestID := chimiddleware.GetReqID(r.Context())
 		log := logger.WithRequestID(r.Context(), h.log, requestID)
-		log.InfoContext(r.Context(), "http request", slog.String("method", r.Method), slog.String("path", r.URL.Path))
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(wrapped, r)
+
+		status := wrapped.Status()
+		if status == 0 {
+			status = http.StatusOK
+		}
+		attrs := []slog.Attr{
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Int("status", status),
+			slog.Int("bytes", wrapped.BytesWritten()),
+			slog.Int64("duration_ms", time.Since(startedAt).Milliseconds()),
+		}
+		switch {
+		case status >= http.StatusInternalServerError:
+			log.LogAttrs(r.Context(), slog.LevelError, "http request completed", attrs...)
+		case status >= http.StatusBadRequest:
+			log.LogAttrs(r.Context(), slog.LevelWarn, "http request completed", attrs...)
+		default:
+			log.LogAttrs(r.Context(), slog.LevelInfo, "http request completed", attrs...)
+		}
 	})
 }
 

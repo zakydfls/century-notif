@@ -210,7 +210,13 @@ func (c *RabbitConsumer) handleDelivery(ctx context.Context, channel *amqp.Chann
 		return
 	}
 	if err := handler(ctx, message); err != nil {
-		c.log.WarnContext(ctx, "delivery handler failed", slog.String("error", err.Error()))
+		c.log.WarnContext(ctx, "delivery handler failed",
+			slog.String("message_id", message.ID.String()),
+			slog.String("notification_id", message.Payload.NotificationID.String()),
+			slog.String("channel", message.Channel.String()),
+			slog.Int("retry_count", retryCountFromHeaders(delivery.Headers)),
+			slog.String("error", err.Error()),
+		)
 		c.retryOrDeadLetter(ctx, channel, channelMu, delivery, config, message)
 		return
 	}

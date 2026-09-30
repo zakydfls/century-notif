@@ -13,9 +13,9 @@ import (
 func (h *Handler) Router() http.Handler {
 	router := chi.NewRouter()
 	router.Use(requestIDMiddleware)
+	router.Use(h.requestLogger)
 	router.Use(chimiddleware.Recoverer)
 	router.Use(chimiddleware.Timeout(30 * time.Second))
-	router.Use(h.requestLogger)
 
 	router.Get("/healthz", RootHandler(h.health))
 	router.Get("/readyz", RootHandler(h.ready))

@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"strings"
-
-	"notif-gateway/internal/core/enum"
 )
 
 type Config struct {
@@ -38,7 +36,7 @@ func WithRequestID(ctx context.Context, log *slog.Logger, requestID string) *slo
 	if requestID == "" {
 		return log
 	}
-	return log.With(enum.HeaderRequestID, requestID)
+	return log.With("request_id", requestID)
 }
 
 func Redact(value string) string {

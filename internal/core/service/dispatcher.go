@@ -64,7 +64,12 @@ func (d *Dispatcher) Dispatch(ctx context.Context, cmd command.Dispatch) (comman
 		Metadata:             cmd.Metadata,
 	})
 	if err != nil {
-		d.log.WarnContext(ctx, "provider dispatch failed", slog.String("provider", providerName.String()), slog.String("channel", cmd.Channel.String()), slog.String("error", err.Error()))
+		d.log.WarnContext(ctx, "provider dispatch failed",
+			slog.String("notification_id", cmd.NotificationID),
+			slog.String("provider", providerName.String()),
+			slog.String("channel", cmd.Channel.String()),
+			slog.String("error", err.Error()),
+		)
 		return command.ProviderSendResult{}, ensureProviderError(err)
 	}
 	return result, nil

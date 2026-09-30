@@ -3,6 +3,7 @@ package service
 import (
 	"io"
 	"log/slog"
+	"net/http"
 	"testing"
 
 	"notif-gateway/internal/core/command"
@@ -23,7 +24,7 @@ func TestNotificationBuilderDisposableEmailPolicy(t *testing.T) {
 	}
 
 	builder := NewNotificationBuilder(nil, dispatcher, EmailSecurityPolicy{BlockDisposable: true})
-	if _, err := builder.Build(t.Context(), input); !isAppErrorKey(err, apperror.KeyEmailDisposableRecipient) {
+	if _, err := builder.Build(t.Context(), input); !isDisposableEmailError(err) {
 		t.Fatalf("error = %v, want %s", err, apperror.KeyEmailDisposableRecipient)
 	}
 
@@ -54,4 +55,10 @@ func TestNotificationBuilderDisposableEmailPolicy(t *testing.T) {
 func isAppErrorKey(err error, key string) bool {
 	appErr, ok := err.(*apperror.Error)
 	return ok && appErr.Key == key
+}
+
+func isDisposableEmailError(err error) bool {
+	appErr, ok := err.(*apperror.Error)
+	return ok && appErr.HTTPStatus == http.StatusBadRequest && appErr.Code == apperror.CodeBadRequest &&
+		appErr.Key == apperror.KeyEmailDisposableRecipient && appErr.Message == "disposable email addresses are not allowed"
 }
