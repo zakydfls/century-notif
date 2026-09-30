@@ -72,6 +72,13 @@ func main() {
 		HMACKey:           strings.TrimSpace(config.Provider.WAHA.WebhookHMACKey),
 		ValidateSignature: config.Provider.WAHA.ValidateWebhookSignature,
 	}
+	whatsocktWebhook := rest.WhatsocktWebhook{
+		Secret:            strings.TrimSpace(config.Provider.Whatsockt.WebhookSecret),
+		ValidateSignature: config.Provider.Whatsockt.ValidateWebhookSignature,
+	}
+	if whatsocktWebhook.ValidateSignature && whatsocktWebhook.Secret == "" {
+		log.Warn("WHATSOCKT_VALIDATE_WEBHOOK_SIGNATURE enabled but WHATSOCKT_WEBHOOK_SECRET is empty; Whatsockt webhooks will be rejected")
+	}
 	if wahaWebhook.ValidateSignature && wahaWebhook.HMACKey == "" {
 		log.Warn("WAHA_VALIDATE_WEBHOOK_SIGNATURE enabled but WAHA_WEBHOOK_HMAC_KEY is empty; WAHA webhooks will be rejected")
 	}
@@ -82,7 +89,7 @@ func main() {
 	if resendWebhook.ValidateSignature && resendWebhook.Secret == "" {
 		log.Warn("RESEND_VALIDATE_WEBHOOK_SIGNATURE enabled but RESEND_WEBHOOK_SECRET is empty; Resend webhooks will be rejected")
 	}
-	handler := rest.NewHandler(notifications, webhooks, log, config.HTTP.NotificationAPIKey, twilioWebhook, wahaWebhook, resendWebhook)
+	handler := rest.NewHandler(notifications, webhooks, log, config.HTTP.NotificationAPIKey, twilioWebhook, wahaWebhook, whatsocktWebhook, resendWebhook)
 	server := &http.Server{
 		Addr:    config.HTTP.Addr,
 		Handler: handler.Router(),

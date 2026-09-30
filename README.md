@@ -2,6 +2,19 @@
 
 Notif Gateway handles SMS, WhatsApp, and Email notifications via REST enqueue, Postgres, RabbitMQ, and worker consumers.
 
+Whatsockt is the default WhatsApp provider. Configure it with:
+
+```env
+PROVIDER_DEFAULT_WHATSAPP=whatsockt
+WHATSOCKT_BASE_URL=https://whatsockt.example.com
+WHATSOCKT_API_KEY=wag_xxxxxxxxx
+WHATSOCKT_DEVICE_ID=00000000-0000-0000-0000-000000000000
+WHATSOCKT_WEBHOOK_SECRET=your-webhook-signing-secret
+```
+
+Point the Whatsockt `message.outbound.*` webhook subscription to
+`https://notifications.example.com/api/v1/webhooks/whatsockt/whatsapp`.
+
 It can send without template. For plain text notification, send `body` directly:
 
 ```json

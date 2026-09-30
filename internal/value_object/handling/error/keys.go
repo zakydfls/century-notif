@@ -49,5 +49,10 @@ const (
 
 	KeyWAHASendFailed             = "provider.waha.send_failed"
 	KeyWAHAWebhookHMACKeyRequired = "provider.waha.webhook_hmac_key_required"
-	KeyNotImplemented             = "errors.not_implemented"
+
+	KeyWhatsocktNotConfigured      = "provider.whatsockt.not_configured"
+	KeyWhatsocktTextRequired       = "provider.whatsockt.text_required"
+	KeyWhatsocktSendFailed         = "provider.whatsockt.send_failed"
+	KeyWhatsocktWebhookKeyRequired = "provider.whatsockt.webhook_key_required"
+	KeyNotImplemented              = "errors.not_implemented"
 )

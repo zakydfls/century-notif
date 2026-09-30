@@ -60,6 +60,7 @@ func (p *deliveryProcessor) Process(ctx context.Context, message event.OutboxMes
 	result, err := p.dispatcher.Dispatch(ctx, command.Dispatch{
 		NotificationID:       notification.ID.String(),
 		Channel:              notification.Channel,
+		Provider:             notification.Provider,
 		Recipient:            notification.Recipient,
 		Body:                 notification.Body,
 		ProviderTemplateID:   notification.ProviderTemplateID,

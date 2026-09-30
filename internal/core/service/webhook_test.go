@@ -120,6 +120,42 @@ func TestMapWAHAAckStatus(t *testing.T) {
 	}
 }
 
+func TestMapWhatsocktEventStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		eventType string
+		want      enum.NotificationStatus
+		wantOK    bool
+	}{
+		{enum.WhatsocktEventDispatching, enum.NotificationStatusProcessing, true},
+		{enum.WhatsocktEventAccepted, enum.NotificationStatusSent, true},
+		{enum.WhatsocktEventDelivered, enum.NotificationStatusDelivered, true},
+		{enum.WhatsocktEventRead, enum.NotificationStatusDelivered, true},
+		{enum.WhatsocktEventFailed, enum.NotificationStatusFailed, true},
+		{enum.WhatsocktEventUnknown, enum.NotificationStatusFailed, true},
+		{"message.inbound.received", "", false},
+	}
+	for _, tt := range tests {
+		got, ok := MapWhatsocktEventStatus(tt.eventType)
+		if got != tt.want || ok != tt.wantOK {
+			t.Fatalf("MapWhatsocktEventStatus(%q) = %v, %v; want %v, %v", tt.eventType, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}
+
+func TestApplyWhatsocktStatusFailure(t *testing.T) {
+	t.Parallel()
+
+	notification := &entity.Notification{Status: enum.NotificationStatusSent}
+	applyWhatsocktStatus(notification, enum.NotificationStatusFailed, command.HandleWhatsocktWebhook{
+		EventType: enum.WhatsocktEventFailed, ErrorCode: "send_failed", ErrorMessage: "socket closed",
+	})
+	if notification.Status != enum.NotificationStatusFailed || notification.LastError != "send_failed: socket closed" || notification.FailedAt == nil {
+		t.Fatalf("unexpected notification: %+v", notification)
+	}
+}
+
 func TestApplyWAHAStatusDoesNotRegressDeliveredToSent(t *testing.T) {
 	t.Parallel()
 

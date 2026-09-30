@@ -41,7 +41,10 @@ func NewDispatcher(config DispatcherConfig, providers map[ProviderKey]Provider, 
 }
 
 func (d *Dispatcher) Dispatch(ctx context.Context, cmd command.Dispatch) (command.ProviderSendResult, error) {
-	providerName := d.defaultProvider(cmd.Channel)
+	providerName := cmd.Provider
+	if providerName == "" {
+		providerName = d.defaultProvider(cmd.Channel)
+	}
 	if !providerName.Supports(cmd.Channel) {
 		return command.ProviderSendResult{}, apperror.ErrBadRequest(nil, fmt.Sprintf("provider does not support channel: %s for %s", providerName, cmd.Channel), apperror.KeyProviderChannelNotSupported)
 	}

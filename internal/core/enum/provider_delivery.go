@@ -6,7 +6,7 @@ func (p Provider) SupportsDeliveryWebhook(channel Channel) bool {
 	case ChannelSMS:
 		return p == ProviderTwilio
 	case ChannelWhatsApp:
-		return p == ProviderTwilio || p == ProviderWAHA
+		return p == ProviderTwilio || p == ProviderWAHA || p == ProviderWhatsockt
 	case ChannelEmail:
 		return p == ProviderResend
 	default:

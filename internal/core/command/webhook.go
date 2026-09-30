@@ -60,3 +60,14 @@ type HandleWAHAWebhook struct {
 	Data              types.JSONMap
 	Headers           types.JSONMap
 }
+
+type HandleWhatsocktWebhook struct {
+	EventID           string
+	EventType         string
+	EventCreatedAt    time.Time
+	ProviderMessageID string
+	ErrorCode         string
+	ErrorMessage      string
+	Payload           types.JSONMap
+	Headers           types.JSONMap
+}

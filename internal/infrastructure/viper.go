@@ -61,6 +61,7 @@ type ProviderConfig struct {
 	Twilio          TwilioConfig
 	Alibaba         AlibabaConfig
 	WAHA            WAHAConfig
+	Whatsockt       WhatsocktConfig
 	GoDaddy         GoDaddyConfig
 	Resend          ResendConfig
 }
@@ -91,6 +92,15 @@ type WAHAConfig struct {
 	APIKey                   string
 	Session                  string
 	WebhookHMACKey           string
+	ValidateWebhookSignature bool
+}
+
+type WhatsocktConfig struct {
+	BaseURL                  string
+	APIKey                   string
+	DeviceID                 string
+	Timeout                  time.Duration
+	WebhookSecret            string
 	ValidateWebhookSignature bool
 }
 
@@ -196,6 +206,14 @@ func NewConfig() (Config, error) {
 				WebhookHMACKey:           v.GetString("WAHA_WEBHOOK_HMAC_KEY"),
 				ValidateWebhookSignature: v.GetBool("WAHA_VALIDATE_WEBHOOK_SIGNATURE"),
 			},
+			Whatsockt: WhatsocktConfig{
+				BaseURL:                  v.GetString("WHATSOCKT_BASE_URL"),
+				APIKey:                   v.GetString("WHATSOCKT_API_KEY"),
+				DeviceID:                 v.GetString("WHATSOCKT_DEVICE_ID"),
+				Timeout:                  v.GetDuration("WHATSOCKT_TIMEOUT"),
+				WebhookSecret:            v.GetString("WHATSOCKT_WEBHOOK_SECRET"),
+				ValidateWebhookSignature: v.GetBool("WHATSOCKT_VALIDATE_WEBHOOK_SIGNATURE"),
+			},
 			GoDaddy: GoDaddyConfig{
 				SMTPHost:       v.GetString("GODADDY_SMTP_HOST"),
 				SMTPPort:       v.GetInt("GODADDY_SMTP_PORT"),
@@ -295,7 +313,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("LOG_FORMAT", enum.DefaultLogFormat)
 	v.SetDefault("GORM_LOG_LEVEL", "")
 	v.SetDefault("PROVIDER_DEFAULT_SMS", enum.ProviderTwilio.String())
-	v.SetDefault("PROVIDER_DEFAULT_WHATSAPP", enum.ProviderTwilio.String())
+	v.SetDefault("PROVIDER_DEFAULT_WHATSAPP", enum.ProviderWhatsockt.String())
 	v.SetDefault("PROVIDER_DEFAULT_EMAIL", enum.ProviderGoDaddy.String())
 	v.SetDefault("GODADDY_SMTP_HOST", "smtpout.secureserver.net")
 	v.SetDefault("GODADDY_SMTP_PORT", 587)
@@ -308,6 +326,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ALIBABA_MODE", enum.AlibabaModeGlobe.String())
 	v.SetDefault("WAHA_SESSION", "default")
 	v.SetDefault("WAHA_VALIDATE_WEBHOOK_SIGNATURE", true)
+	v.SetDefault("WHATSOCKT_TIMEOUT", "15s")
+	v.SetDefault("WHATSOCKT_VALIDATE_WEBHOOK_SIGNATURE", true)
 	v.SetDefault("WORKER_CONCURRENCY", 8)
 	v.SetDefault("WORKER_PREFETCH", 16)
 	v.SetDefault("WORKER_MAX_RETRY", 3)

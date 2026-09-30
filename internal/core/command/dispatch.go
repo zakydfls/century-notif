@@ -8,6 +8,7 @@ import (
 type Dispatch struct {
 	NotificationID string
 	Channel        enum.Channel
+	Provider       enum.Provider
 	Recipient      string
 	Body           string
 

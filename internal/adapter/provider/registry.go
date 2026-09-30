@@ -7,6 +7,7 @@ import (
 	smstwilio "notif-gateway/internal/adapter/outbound/sms/twilio"
 	watwilio "notif-gateway/internal/adapter/outbound/whatsapp/twilio"
 	"notif-gateway/internal/adapter/outbound/whatsapp/waha"
+	"notif-gateway/internal/adapter/outbound/whatsapp/whatsockt"
 	"notif-gateway/internal/core/enum"
 	"notif-gateway/internal/core/service"
 	"notif-gateway/internal/infrastructure"
@@ -19,8 +20,9 @@ func NewRegistry(config infrastructure.ProviderConfig) map[service.ProviderKey]s
 		{Channel: enum.ChannelSMS, Provider: enum.ProviderAlibaba}: smsalibaba.NewProvider(config.Alibaba),
 
 		// WhatsApp
-		{Channel: enum.ChannelWhatsApp, Provider: enum.ProviderTwilio}: watwilio.NewProvider(config.Twilio),
-		{Channel: enum.ChannelWhatsApp, Provider: enum.ProviderWAHA}:   waha.NewProvider(config.WAHA),
+		{Channel: enum.ChannelWhatsApp, Provider: enum.ProviderTwilio}:    watwilio.NewProvider(config.Twilio),
+		{Channel: enum.ChannelWhatsApp, Provider: enum.ProviderWAHA}:      waha.NewProvider(config.WAHA),
+		{Channel: enum.ChannelWhatsApp, Provider: enum.ProviderWhatsockt}: whatsockt.NewProvider(config.Whatsockt),
 
 		// Email
 		{Channel: enum.ChannelEmail, Provider: enum.ProviderGoDaddy}: emailgodaddy.NewProvider(config.GoDaddy),

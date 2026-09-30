@@ -21,6 +21,7 @@ import (
 type Webhook interface {
 	Handle(ctx context.Context, cmd command.HandleWebhook) error
 	HandleWAHA(ctx context.Context, cmd command.HandleWAHAWebhook) error
+	HandleWhatsockt(ctx context.Context, cmd command.HandleWhatsocktWebhook) error
 	HandleResend(ctx context.Context, cmd command.HandleResendWebhook) error
 }
 
@@ -74,6 +75,66 @@ func (h *webhook) HandleWAHA(ctx context.Context, cmd command.HandleWAHAWebhook)
 	return h.txm.Do(ctx, func(tx *gorm.DB) error {
 		return h.handleWAHAWithRepos(ctx, cmd, h.notif.WithTrx(tx), h.events.WithTrx(tx))
 	})
+}
+
+func (h *webhook) HandleWhatsockt(ctx context.Context, cmd command.HandleWhatsocktWebhook) error {
+	if h.events == nil || h.txm == nil {
+		return apperror.ErrInternal(errors.New("whatsockt webhook handler is not configured"))
+	}
+	return h.txm.Do(ctx, func(tx *gorm.DB) error {
+		return h.handleWhatsocktWithRepos(ctx, cmd, h.notif.WithTrx(tx), h.events.WithTrx(tx))
+	})
+}
+
+func (h *webhook) handleWhatsocktWithRepos(ctx context.Context, cmd command.HandleWhatsocktWebhook, notif repository.Notification, events repository.WebhookEvent) error {
+	now := time.Now()
+	event := &entity.NotificationWebhookEvent{
+		Provider:          enum.ProviderWhatsockt,
+		EventID:           strings.TrimSpace(cmd.EventID),
+		EventType:         strings.TrimSpace(cmd.EventType),
+		ProviderMessageID: strings.TrimSpace(cmd.ProviderMessageID),
+		ReceivedAt:        now,
+		Payload:           commandJSONMap(cmd.Payload),
+		Headers:           commandJSONMap(cmd.Headers),
+	}
+	if !cmd.EventCreatedAt.IsZero() {
+		event.EventCreatedAt = &cmd.EventCreatedAt
+	}
+	if err := events.Create(ctx, event); err != nil {
+		if errors.Is(err, repository.ErrDuplicate) {
+			return nil
+		}
+		return err
+	}
+
+	status, ok := MapWhatsocktEventStatus(cmd.EventType)
+	if !ok {
+		event.ProcessedAt = &now
+		return events.Save(ctx, event)
+	}
+	event.Status = status
+	if event.ProviderMessageID == "" {
+		event.ErrorMessage = "whatsockt webhook message id is missing"
+		event.ProcessedAt = &now
+		return events.Save(ctx, event)
+	}
+
+	notification := &entity.Notification{Provider: enum.ProviderWhatsockt, ProviderMessageID: event.ProviderMessageID}
+	if err := notif.Find(ctx, notification); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			event.ErrorMessage = "notification not found for whatsockt message id: " + event.ProviderMessageID
+			event.ProcessedAt = &now
+			return events.Save(ctx, event)
+		}
+		return err
+	}
+	event.NotificationID = &notification.ID
+	applyWhatsocktStatus(notification, status, cmd)
+	event.ProcessedAt = &now
+	if err := notif.Save(ctx, notification); err != nil {
+		return err
+	}
+	return events.Save(ctx, event)
 }
 
 func (h *webhook) handleWAHAWithRepos(ctx context.Context, cmd command.HandleWAHAWebhook, notif repository.Notification, events repository.WebhookEvent) error {
@@ -347,6 +408,21 @@ func MapWAHAAckStatus(eventType, ackName string, ack int, ackPresent bool) (enum
 	}
 }
 
+func MapWhatsocktEventStatus(eventType string) (enum.NotificationStatus, bool) {
+	switch strings.ToLower(strings.TrimSpace(eventType)) {
+	case enum.WhatsocktEventDispatching:
+		return enum.NotificationStatusProcessing, true
+	case enum.WhatsocktEventAccepted:
+		return enum.NotificationStatusSent, true
+	case enum.WhatsocktEventDelivered, enum.WhatsocktEventRead:
+		return enum.NotificationStatusDelivered, true
+	case enum.WhatsocktEventFailed, enum.WhatsocktEventUnknown:
+		return enum.NotificationStatusFailed, true
+	default:
+		return "", false
+	}
+}
+
 func applyWAHAStatus(notification *entity.Notification, status enum.NotificationStatus, cmd command.HandleWAHAWebhook) {
 	now := time.Now()
 	if !shouldApplyProviderStatus(notification.Status, status) {
@@ -371,6 +447,44 @@ func applyWAHAStatus(notification *entity.Notification, status enum.Notification
 		notification.FailedAt = &now
 	default:
 	}
+}
+
+func applyWhatsocktStatus(notification *entity.Notification, status enum.NotificationStatus, cmd command.HandleWhatsocktWebhook) {
+	now := time.Now()
+	if !shouldApplyProviderStatus(notification.Status, status) {
+		return
+	}
+	notification.Status = status
+	switch status {
+	case enum.NotificationStatusProcessing:
+	case enum.NotificationStatusSent:
+		if notification.SentAt == nil {
+			notification.SentAt = &now
+		}
+		notification.LastError = ""
+	case enum.NotificationStatusDelivered:
+		if notification.SentAt == nil {
+			notification.SentAt = &now
+		}
+		notification.DeliveredAt = &now
+		notification.LastError = ""
+	case enum.NotificationStatusFailed:
+		notification.LastError = strings.TrimSpace(strings.Join(nonEmptyStrings(cmd.ErrorCode, cmd.ErrorMessage), ": "))
+		if notification.LastError == "" {
+			notification.LastError = strings.TrimSpace(cmd.EventType)
+		}
+		notification.FailedAt = &now
+	}
+}
+
+func nonEmptyStrings(values ...string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func applyResendStatus(notification *entity.Notification, status enum.NotificationStatus, cmd command.HandleResendWebhook) {

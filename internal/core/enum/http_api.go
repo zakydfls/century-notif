@@ -8,5 +8,6 @@ const (
 	TwilioWebhookPathSMS      = HTTPAPIPrefix + "/webhooks/twilio/sms"
 	TwilioWebhookPathWhatsApp = HTTPAPIPrefix + "/webhooks/twilio/whatsapp"
 	WAHAWebhookPathWhatsApp   = HTTPAPIPrefix + "/webhooks/waha/whatsapp"
+	WhatsocktWebhookPath      = HTTPAPIPrefix + "/webhooks/whatsockt/whatsapp"
 	ResendWebhookPath         = HTTPAPIPrefix + "/webhooks/resend"
 )

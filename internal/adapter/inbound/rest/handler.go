@@ -24,6 +24,11 @@ type WAHAWebhook struct {
 	ValidateSignature bool
 }
 
+type WhatsocktWebhook struct {
+	Secret            string
+	ValidateSignature bool
+}
+
 // Handler composes REST modules and exposes the root HTTP handler.
 type Handler struct {
 	notifications      NotificationREST
@@ -39,11 +44,12 @@ func NewHandler(
 	notificationAPIKey string,
 	twilio TwilioWebhook,
 	waha WAHAWebhook,
+	whatsockt WhatsocktWebhook,
 	resend ResendWebhook,
 ) *Handler {
 	return &Handler{
 		notifications:      NewNotificationREST(notifications),
-		webhooks:           NewWebhookREST(webhooks, twilio, waha, resend),
+		webhooks:           NewWebhookREST(webhooks, twilio, waha, whatsockt, resend),
 		log:                log,
 		notificationAPIKey: notificationAPIKey,
 	}

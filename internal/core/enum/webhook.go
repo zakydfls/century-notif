@@ -17,6 +17,16 @@ const (
 	TwilioMessageStatusCancelled   = "cancelled"
 )
 
+// Whatsockt outbound webhook event types.
+const (
+	WhatsocktEventDispatching = "message.outbound.dispatching"
+	WhatsocktEventAccepted    = "message.outbound.accepted"
+	WhatsocktEventDelivered   = "message.outbound.delivered"
+	WhatsocktEventRead        = "message.outbound.read"
+	WhatsocktEventFailed      = "message.outbound.failed"
+	WhatsocktEventUnknown     = "message.outbound.unknown"
+)
+
 // JSON webhook status strings used by non-Twilio providers (e.g. Alibaba/WAHA).
 // not fully documented yet.
 const (

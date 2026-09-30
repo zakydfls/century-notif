@@ -29,9 +29,11 @@ import (
 	types "notif-gateway/internal/value_object/util/type"
 )
 
-const maxTwilioWebhookBodyBytes = 1 << 20 // 1 MiB
-const maxWAHAWebhookBodyBytes = 1 << 20   // 1 MiB
-const maxResendWebhookBodyBytes = 1 << 20 // 1 MiB
+const maxTwilioWebhookBodyBytes = 1 << 20    // 1 MiB
+const maxWAHAWebhookBodyBytes = 1 << 20      // 1 MiB
+const maxWhatsocktWebhookBodyBytes = 1 << 20 // 1 MiB
+const maxResendWebhookBodyBytes = 1 << 20    // 1 MiB
+const whatsocktWebhookTolerance = 5 * time.Minute
 
 type WebhookREST interface {
 	RouteModule
@@ -39,16 +41,18 @@ type WebhookREST interface {
 	TwilioSMS(w http.ResponseWriter, r *http.Request) error
 	TwilioWhatsApp(w http.ResponseWriter, r *http.Request) error
 	WAHAWhatsApp(w http.ResponseWriter, r *http.Request) error
+	WhatsocktWhatsApp(w http.ResponseWriter, r *http.Request) error
 	Resend(w http.ResponseWriter, r *http.Request) error
 }
 
-func NewWebhookREST(webhooks service.Webhook, twilio TwilioWebhook, waha WAHAWebhook, resend ResendWebhook) WebhookREST {
+func NewWebhookREST(webhooks service.Webhook, twilio TwilioWebhook, waha WAHAWebhook, whatsockt WhatsocktWebhook, resend ResendWebhook) WebhookREST {
 	validateEffective := twilio.ValidateSignature && twilio.AuthToken != ""
 	return &webhookREST{
 		webhooks:                webhooks,
 		twilioWebhookCfg:        twilio,
 		twilioValidateEffective: validateEffective,
 		wahaWebhookCfg:          waha,
+		whatsocktWebhookCfg:     whatsockt,
 		resendWebhookCfg:        resend,
 	}
 }
@@ -58,6 +62,7 @@ type webhookREST struct {
 	twilioWebhookCfg        TwilioWebhook
 	twilioValidateEffective bool
 	wahaWebhookCfg          WAHAWebhook
+	whatsocktWebhookCfg     WhatsocktWebhook
 	resendWebhookCfg        ResendWebhook
 }
 
@@ -75,6 +80,7 @@ func (h *webhookREST) Mount(r chi.Router) {
 	r.Post("/twilio/sms", RootHandler(h.TwilioSMS))
 	r.Post("/twilio/whatsapp", RootHandler(h.TwilioWhatsApp))
 	r.Post("/waha/whatsapp", RootHandler(h.WAHAWhatsApp))
+	r.Post("/whatsockt/whatsapp", RootHandler(h.WhatsocktWhatsApp))
 	r.Post("/resend", RootHandler(h.Resend))
 }
 
@@ -124,6 +130,50 @@ func (h *webhookREST) verifyWAHAWebhook(body []byte, header http.Header) error {
 	expected := wahaWebhookHMAC(body, key)
 	if subtle.ConstantTimeCompare([]byte(strings.ToLower(signature)), []byte(expected)) != 1 {
 		return apperror.ErrForbidden(nil, "invalid waha webhook hmac", apperror.KeyWebhookInvalidSign)
+	}
+	return nil
+}
+
+func (h *webhookREST) WhatsocktWhatsApp(w http.ResponseWriter, r *http.Request) error {
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxWhatsocktWebhookBodyBytes))
+	if err != nil {
+		return apperror.ErrBadRequest(err, err.Error(), apperror.KeyWebhookBodyReadFailed)
+	}
+	if err := h.verifyWhatsocktWebhook(body, r.Header); err != nil {
+		return err
+	}
+	cmd, err := whatsocktWebhookCommand(body, r.Header)
+	if err != nil {
+		return err
+	}
+	if err := h.webhooks.HandleWhatsockt(r.Context(), cmd); err != nil {
+		return err
+	}
+	response.SuccessData(w, "webhook received", http.StatusOK, map[string]string{"provider": enum.ProviderWhatsockt.String()})
+	return nil
+}
+
+func (h *webhookREST) verifyWhatsocktWebhook(body []byte, header http.Header) error {
+	if !h.whatsocktWebhookCfg.ValidateSignature {
+		return nil
+	}
+	secret := strings.TrimSpace(h.whatsocktWebhookCfg.Secret)
+	if secret == "" {
+		return apperror.ErrForbidden(nil, "whatsockt webhook secret is required", apperror.KeyWhatsocktWebhookKeyRequired)
+	}
+	timestamp := strings.TrimSpace(header.Get("X-WA-Timestamp"))
+	sentAt, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return apperror.ErrForbidden(err, "invalid whatsockt webhook timestamp", apperror.KeyWebhookInvalidSign)
+	}
+	delta := time.Now().Unix() - sentAt
+	if delta < -int64(whatsocktWebhookTolerance/time.Second) || delta > int64(whatsocktWebhookTolerance/time.Second) {
+		return apperror.ErrForbidden(nil, "expired whatsockt webhook timestamp", apperror.KeyWebhookInvalidSign)
+	}
+	signature := strings.TrimSpace(header.Get("X-WA-Signature"))
+	expected := whatsocktWebhookHMAC(timestamp, body, secret)
+	if subtle.ConstantTimeCompare([]byte(signature), []byte(expected)) != 1 {
+		return apperror.ErrForbidden(nil, "invalid whatsockt webhook signature", apperror.KeyWebhookInvalidSign)
 	}
 	return nil
 }
@@ -257,6 +307,47 @@ func wahaWebhookCommand(body []byte, header http.Header) (command.HandleWAHAWebh
 	}, nil
 }
 
+func whatsocktWebhookCommand(body []byte, header http.Header) (command.HandleWhatsocktWebhook, error) {
+	var payload types.JSONMap
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return command.HandleWhatsocktWebhook{}, apperror.ErrBadRequest(err, err.Error(), apperror.KeyWebhookInvalidJSON)
+	}
+	eventType := strings.TrimSpace(stringFromAny(payload["type"]))
+	if eventType == "" {
+		return command.HandleWhatsocktWebhook{}, apperror.ErrBadRequest(nil, "whatsockt webhook type is required", apperror.KeyWebhookInvalidJSON)
+	}
+	var eventCreatedAt time.Time
+	if raw := strings.TrimSpace(stringFromAny(payload["occurred_at"])); raw != "" {
+		parsed, err := time.Parse(time.RFC3339Nano, raw)
+		if err != nil {
+			return command.HandleWhatsocktWebhook{}, apperror.ErrBadRequest(err, "invalid whatsockt webhook occurred_at", apperror.KeyWebhookInvalidJSON)
+		}
+		eventCreatedAt = parsed
+	}
+	data := jsonMapFromAny(payload["data"])
+	eventID := strings.TrimSpace(header.Get("X-WA-Delivery-ID"))
+	if eventID == "" {
+		eventID = strings.TrimSpace(stringFromAny(payload["id"]))
+	}
+	if eventID == "" {
+		eventID = fallbackResendEventID(body)
+	}
+	return command.HandleWhatsocktWebhook{
+		EventID:           eventID,
+		EventType:         eventType,
+		EventCreatedAt:    eventCreatedAt,
+		ProviderMessageID: strings.TrimSpace(stringFromAny(data["message_id"])),
+		ErrorCode:         strings.TrimSpace(stringFromAny(data["error_code"])),
+		ErrorMessage:      strings.TrimSpace(stringFromAny(data["error_message"])),
+		Payload:           payload,
+		Headers: types.JSONMap{
+			"x_wa_timestamp":   strings.TrimSpace(header.Get("X-WA-Timestamp")),
+			"x_wa_signature":   strings.TrimSpace(header.Get("X-WA-Signature")),
+			"x_wa_delivery_id": strings.TrimSpace(header.Get("X-WA-Delivery-ID")),
+		},
+	}, nil
+}
+
 func resendWebhookCommand(body []byte, header http.Header) (command.HandleResendWebhook, error) {
 	var payload types.JSONMap
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -319,6 +410,14 @@ func wahaWebhookHMAC(body []byte, key string) string {
 	mac := hmac.New(sha512.New, []byte(key))
 	_, _ = mac.Write(body)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func whatsocktWebhookHMAC(timestamp string, body []byte, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestamp))
+	_, _ = mac.Write([]byte("."))
+	_, _ = mac.Write(body)
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
 func jsonMapFromAny(value any) types.JSONMap {
