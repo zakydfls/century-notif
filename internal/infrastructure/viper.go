@@ -11,16 +11,17 @@ import (
 )
 
 type Config struct {
-	App       AppConfig
-	HTTP      HTTPConfig
-	Postgres  PostgresConfig
-	Redis     RedisConfig
-	Rabbit    RabbitConfig
-	Logger    LoggerConfig
-	Provider  ProviderConfig
-	Worker    WorkerConfig
-	Outbox    OutboxConfig
-	Migration MigrationConfig
+	App           AppConfig
+	HTTP          HTTPConfig
+	Postgres      PostgresConfig
+	Redis         RedisConfig
+	Rabbit        RabbitConfig
+	Logger        LoggerConfig
+	Provider      ProviderConfig
+	EmailSecurity EmailSecurityConfig
+	Worker        WorkerConfig
+	Outbox        OutboxConfig
+	Migration     MigrationConfig
 }
 
 type AppConfig struct {
@@ -122,6 +123,11 @@ type ResendConfig struct {
 	Timeout                  time.Duration
 	WebhookSecret            string
 	ValidateWebhookSignature bool
+}
+
+type EmailSecurityConfig struct {
+	BlockDisposable     bool
+	DisposableAllowlist []string
 }
 
 type WorkerConfig struct {
@@ -233,6 +239,10 @@ func NewConfig() (Config, error) {
 				ValidateWebhookSignature: v.GetBool("RESEND_VALIDATE_WEBHOOK_SIGNATURE"),
 			},
 		},
+		EmailSecurity: EmailSecurityConfig{
+			BlockDisposable:     v.GetBool("EMAIL_BLOCK_DISPOSABLE"),
+			DisposableAllowlist: splitCommaSeparated(v.GetString("EMAIL_DISPOSABLE_ALLOWLIST")),
+		},
 		Worker: WorkerConfig{
 			Prefetch:    v.GetInt("WORKER_PREFETCH"),
 			Concurrency: v.GetInt("WORKER_CONCURRENCY"),
@@ -328,6 +338,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("WAHA_VALIDATE_WEBHOOK_SIGNATURE", true)
 	v.SetDefault("WHATSOCKT_TIMEOUT", "15s")
 	v.SetDefault("WHATSOCKT_VALIDATE_WEBHOOK_SIGNATURE", true)
+	v.SetDefault("EMAIL_BLOCK_DISPOSABLE", true)
 	v.SetDefault("WORKER_CONCURRENCY", 8)
 	v.SetDefault("WORKER_PREFETCH", 16)
 	v.SetDefault("WORKER_MAX_RETRY", 3)
@@ -338,4 +349,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("OUTBOX_RETRY_MAX_DELAY", "5m")
 	v.SetDefault("MIGRATION_AUTO_MIGRATE", true)
 	v.SetDefault("TWILIO_VALIDATE_WEBHOOK_SIGNATURE", true)
+}
+
+func splitCommaSeparated(value string) []string {
+	var result []string
+	for item := range strings.SplitSeq(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
 }

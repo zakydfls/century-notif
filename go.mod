@@ -9,6 +9,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
+	github.com/mehrtat/disposable-email-domain v1.0.81
 	github.com/rabbitmq/amqp091-go v1.11.0
 	github.com/resend/resend-go/v3 v3.7.0
 	github.com/spf13/viper v1.21.0

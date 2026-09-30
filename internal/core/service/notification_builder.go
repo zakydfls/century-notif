@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"net/mail"
 	"strings"
+
+	disposable "github.com/mehrtat/disposable-email-domain"
 
 	"notif-gateway/internal/core/command"
 	"notif-gateway/internal/core/entity"
@@ -12,14 +15,29 @@ import (
 )
 
 type NotificationBuilder struct {
-	renderer   *TemplateRenderer
-	dispatcher *Dispatcher
+	renderer             *TemplateRenderer
+	dispatcher           *Dispatcher
+	blockDisposableEmail bool
+	emailAllowlist       map[string]struct{}
 }
 
-func NewNotificationBuilder(renderer *TemplateRenderer, dispatcher *Dispatcher) *NotificationBuilder {
+type EmailSecurityPolicy struct {
+	BlockDisposable     bool
+	DisposableAllowlist []string
+}
+
+func NewNotificationBuilder(renderer *TemplateRenderer, dispatcher *Dispatcher, policy EmailSecurityPolicy) *NotificationBuilder {
+	allowlist := make(map[string]struct{}, len(policy.DisposableAllowlist))
+	for _, domain := range policy.DisposableAllowlist {
+		if domain = strings.ToLower(strings.TrimSpace(domain)); domain != "" {
+			allowlist[domain] = struct{}{}
+		}
+	}
 	return &NotificationBuilder{
-		renderer:   renderer,
-		dispatcher: dispatcher,
+		renderer:             renderer,
+		dispatcher:           dispatcher,
+		blockDisposableEmail: policy.BlockDisposable,
+		emailAllowlist:       allowlist,
 	}
 }
 
@@ -37,6 +55,16 @@ func (b *NotificationBuilder) Build(ctx context.Context, input command.Enqueue) 
 	if input.Channel == enum.ChannelEmail {
 		if err := validateEmailMetadata(input.Metadata); err != nil {
 			return nil, err
+		}
+		for _, recipient := range input.Recipients {
+			if err := b.validateEmailRecipient(recipient); err != nil {
+				return nil, err
+			}
+		}
+		for _, recipient := range emailMetadataRecipients(input.Metadata) {
+			if err := b.validateEmailRecipient(recipient); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -82,6 +110,62 @@ func (b *NotificationBuilder) Build(ctx context.Context, input command.Enqueue) 
 		})
 	}
 	return notifications, nil
+}
+
+func (b *NotificationBuilder) validateEmailRecipient(recipient string) error {
+	address, err := mail.ParseAddress(strings.TrimSpace(recipient))
+	if err != nil {
+		return apperror.ErrBadRequest(err, "invalid email recipient", apperror.KeyEmailInvalidRecipient)
+	}
+	if !b.blockDisposableEmail {
+		return nil
+	}
+	domain := emailDomain(address.Address)
+	if domainOrParentInSet(domain, func(candidate string) bool {
+		_, allowed := b.emailAllowlist[candidate]
+		return allowed
+	}) {
+		return nil
+	}
+	if domainOrParentInSet(domain, disposable.IsDisposable) {
+		return apperror.ErrBadRequest(nil, "disposable email addresses are not allowed", apperror.KeyEmailDisposableRecipient)
+	}
+	return nil
+}
+
+func domainOrParentInSet(domain string, contains func(string) bool) bool {
+	for strings.Contains(domain, ".") {
+		if contains(domain) {
+			return true
+		}
+		_, domain, _ = strings.Cut(domain, ".")
+	}
+	return false
+}
+
+func emailMetadataRecipients(metadata types.JSONMap) []string {
+	var result []string
+	for _, key := range []string{enum.EmailMetaCC, enum.EmailMetaBCC} {
+		switch values := metadata[key].(type) {
+		case []string:
+			result = append(result, values...)
+		case []any:
+			for _, value := range values {
+				if recipient, ok := value.(string); ok {
+					result = append(result, recipient)
+				}
+			}
+		}
+	}
+	return result
+}
+
+func emailDomain(address string) string {
+	address = strings.ToLower(strings.TrimSpace(address))
+	if at := strings.LastIndexByte(address, '@'); at >= 0 {
+		return strings.TrimRight(address[at+1:], ".")
+	}
+	return ""
 }
 
 func NormalizeJSONMap(value types.JSONMap) types.JSONMap {

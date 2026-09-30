@@ -70,7 +70,10 @@ func run() error {
 	attemptRepo := repository.NewAttempt(db)
 	templateRepo := repository.NewTemplate(db)
 	outboxRepo := repository.NewNotificationOutbox(db)
-	builder := service.NewNotificationBuilder(service.NewTemplateRenderer(templateRepo), dispatcher)
+	builder := service.NewNotificationBuilder(service.NewTemplateRenderer(templateRepo), dispatcher, service.EmailSecurityPolicy{
+		BlockDisposable:     config.EmailSecurity.BlockDisposable,
+		DisposableAllowlist: config.EmailSecurity.DisposableAllowlist,
+	})
 	processor := service.NewDeliveryProcessor(notifRepo, attemptRepo, dispatcher, builder)
 	var consumer event.Consumer = infrastructure.NewRabbitConsumer(rabbit, logger)
 	sweeper := service.NewOutboxSweeper(outboxRepo, rabbit, logger, service.OutboxSweeperConfig{

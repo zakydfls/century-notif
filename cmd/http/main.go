@@ -51,7 +51,10 @@ func main() {
 	}, providers, log)
 
 	renderer := service.NewTemplateRenderer(templateRepo)
-	builder := service.NewNotificationBuilder(renderer, dispatcher)
+	builder := service.NewNotificationBuilder(renderer, dispatcher, service.EmailSecurityPolicy{
+		BlockDisposable:     config.EmailSecurity.BlockDisposable,
+		DisposableAllowlist: config.EmailSecurity.DisposableAllowlist,
+	})
 	notifications := service.NewNotificationService(
 		notifRepo,
 		outboxRepo,

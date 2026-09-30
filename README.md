@@ -15,6 +15,17 @@ WHATSOCKT_WEBHOOK_SECRET=your-webhook-signing-secret
 Point the Whatsockt `message.outbound.*` webhook subscription to
 `https://notifications.example.com/api/v1/webhooks/whatsockt/whatsapp`.
 
+Disposable email domains are blocked by default using an embedded, daily-versioned
+open-source domain list (no runtime API call):
+
+```env
+EMAIL_BLOCK_DISPOSABLE=true
+EMAIL_DISPOSABLE_ALLOWLIST=trusted-example.com,partner.example
+```
+
+The pinned embedded list is refreshed by updating the dependency:
+`go get github.com/mehrtat/disposable-email-domain@latest`.
+
 It can send without template. For plain text notification, send `body` directly:
 
 ```json

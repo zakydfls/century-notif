@@ -79,7 +79,7 @@ func newNotificationServiceForTest(notifRepo repository.Notification, outboxRepo
 		DefaultWhatsApp: enum.ProviderTwilio,
 		DefaultEmail:    enum.ProviderGoDaddy,
 	}, nil, logger)
-	return NewNotificationService(notifRepo, outboxRepo, fakeTxRunner{}, NewNotificationBuilder(nil, dispatcher))
+	return NewNotificationService(notifRepo, outboxRepo, fakeTxRunner{}, NewNotificationBuilder(nil, dispatcher, EmailSecurityPolicy{}))
 }
 
 type fakeTxRunner struct{}
