@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -136,7 +136,20 @@ jobs:
           cat "$TMP_ENV" > .env
           rm -f "$TMP_ENV"
 
-          $DOCKER compose -f docker-compose.yml --profile migration pull
+          for attempt in 1 2 3; do
+            if $DOCKER pull "$IMAGE_TAG"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "image pull failed after 3 attempts" >&2
+              df -h >&2 || true
+              df -i >&2 || true
+              $DOCKER system df >&2 || true
+              exit 1
+            fi
+            echo "image pull failed (attempt $attempt/3), retrying..." >&2
+            sleep 5
+          done
           $DOCKER compose -f docker-compose.yml --profile migration run --rm migrate
           $DOCKER compose -f docker-compose.yml up -d api worker
           for service in api worker; do
